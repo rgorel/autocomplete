@@ -8,7 +8,8 @@ end
 get '/db' do
   stream do |out|
     File.open('words') do |file|
-      while buffer = file.read(4096)
+      while !file.eof?
+        buffer = file.readline
         out << buffer
       end
     end
