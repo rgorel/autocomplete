@@ -6,5 +6,11 @@ get '/' do
 end
 
 get '/db' do
-  json test: 1
+  stream do |out|
+    File.open('words') do |file|
+      while buffer = file.read(4096)
+        out << buffer
+      end
+    end
+  end
 end
