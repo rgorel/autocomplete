@@ -40,26 +40,66 @@
   getLastUpdated();
 
 })();
-},{"autocomplete":3}],2:[function(require,module,exports){
+},{"autocomplete":4}],2:[function(require,module,exports){
+var TOKEN_PREFIX = 'token';
+
+var Index = function(hash) {
+  this.hash = hash || {};
+
+  function hashKey(key) {
+    return [TOKEN_PREFIX, key].join(':');
+  }
+
+  this.lookup = function(key) {
+    return this.hash[hashKey(key)] || [];
+  }
+
+  this.add = function(key, value) {
+    this.hash.hasOwnProperty(hashKey(key)) || (this.hash[hashKey(key)] = [])
+    this.hash[hashKey(key)].push(value);
+  }
+};
+
+module.exports = Index;
+},{}],3:[function(require,module,exports){
 var storage = require('./storage');
 var node = require('./node');
-var tree = {};
+var tokenize = require('./tokenize');
+var Index = require('./db-index');
+
+var tree;
+var dbIndex;
 
 function load() {
   tree = storage.getTree();
+  dbIndex = new Index(storage.getTokenIndex());
 }
 
 function save() {
   storage.storeTree(tree);
+  storage.storeTokenIndex(dbIndex.hash);
   storage.setUpdatedAt(new Date().toString());
 }
 
 function truncate() {
   tree = {};
+  dbIndex = new Index();
 }
 
-function index(word) {
-  word = word.toLowerCase();
+function index(string) {
+  var tokens = tokenize(string);
+  if (!tokens) return;
+
+  tokens.forEach(function(token) {
+    token = token.toLowerCase();
+
+    dbIndex.add(token, string)
+
+    indexToken(token);
+  });
+}
+
+function indexToken(word) {
   var currentLevel = node(tree);
 
   for (var i in word) {
@@ -87,7 +127,7 @@ function search(term, limit) {
   while(queue.length > 0) {
     var currentNode = node(queue.shift());
 
-    if (currentNode.isWord) results.push(currentNode.getWord());
+    if (currentNode.isWord) Array.prototype.push.apply(results, dbIndex.lookup(currentNode.getWord()));
     if (limit && results.length >= limit) break;
 
     currentNode.eachChild(function(childNode) {
@@ -95,13 +135,15 @@ function search(term, limit) {
     });
   }
 
-  return results;
+  return results.slice(0, limit);
 }
 
 function isEmpty() {
   return Object.keys(tree).length == 0;
 }
 
+
+truncate();
 
 
 module.exports = {
@@ -113,7 +155,7 @@ module.exports = {
   getUpdatedAt: storage.getUpdatedAt,
   truncate: truncate
 }
-},{"./node":5,"./storage":16}],3:[function(require,module,exports){
+},{"./db-index":2,"./node":6,"./storage":17,"./tokenize":18}],4:[function(require,module,exports){
 var db = require('./db');
 var Loader = require('./loader');
 var config = {
@@ -153,7 +195,7 @@ module.exports = {
   },
   getLastUpdated: db.getUpdatedAt
 };
-},{"./db":2,"./loader":4}],4:[function(require,module,exports){
+},{"./db":3,"./loader":5}],5:[function(require,module,exports){
 var Promise = require('promise');
 
 function Loader(url) {
@@ -185,7 +227,7 @@ function Loader(url) {
 }
 
 module.exports = Loader;
-},{"promise":8}],5:[function(require,module,exports){
+},{"promise":9}],6:[function(require,module,exports){
 function node(hash, character) {
   var _node = hash;
   var childrenKey = '_c';
@@ -237,7 +279,7 @@ function node(hash, character) {
 
 
 module.exports = node;
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 
 // rawAsap provides everything we need except exception management.
@@ -305,7 +347,7 @@ RawTask.prototype.call = function () {
     }
 };
 
-},{"./raw":7}],7:[function(require,module,exports){
+},{"./raw":8}],8:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -529,12 +571,12 @@ rawAsap.makeRequestCallFromTimer = makeRequestCallFromTimer;
 // https://github.com/tildeio/rsvp.js/blob/cddf7232546a9cf858524b75cde6f9edf72620a7/lib/rsvp/asap.js
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib')
 
-},{"./lib":13}],9:[function(require,module,exports){
+},{"./lib":14}],10:[function(require,module,exports){
 'use strict';
 
 var asap = require('asap/raw');
@@ -749,7 +791,7 @@ function doResolve(fn, promise) {
   }
 }
 
-},{"asap/raw":7}],10:[function(require,module,exports){
+},{"asap/raw":8}],11:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -764,7 +806,7 @@ Promise.prototype.done = function (onFulfilled, onRejected) {
   });
 };
 
-},{"./core.js":9}],11:[function(require,module,exports){
+},{"./core.js":10}],12:[function(require,module,exports){
 'use strict';
 
 //This file contains the ES6 extensions to the core Promises/A+ API
@@ -873,7 +915,7 @@ Promise.prototype['catch'] = function (onRejected) {
   return this.then(null, onRejected);
 };
 
-},{"./core.js":9}],12:[function(require,module,exports){
+},{"./core.js":10}],13:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -891,7 +933,7 @@ Promise.prototype['finally'] = function (f) {
   });
 };
 
-},{"./core.js":9}],13:[function(require,module,exports){
+},{"./core.js":10}],14:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./core.js');
@@ -901,7 +943,7 @@ require('./es6-extensions.js');
 require('./node-extensions.js');
 require('./synchronous.js');
 
-},{"./core.js":9,"./done.js":10,"./es6-extensions.js":11,"./finally.js":12,"./node-extensions.js":14,"./synchronous.js":15}],14:[function(require,module,exports){
+},{"./core.js":10,"./done.js":11,"./es6-extensions.js":12,"./finally.js":13,"./node-extensions.js":15,"./synchronous.js":16}],15:[function(require,module,exports){
 'use strict';
 
 // This file contains then/promise specific extensions that are only useful
@@ -1033,7 +1075,7 @@ Promise.prototype.nodeify = function (callback, ctx) {
   });
 }
 
-},{"./core.js":9,"asap":6}],15:[function(require,module,exports){
+},{"./core.js":10,"asap":7}],16:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./core.js');
@@ -1097,17 +1139,29 @@ Promise.disableSynchronous = function() {
   Promise.prototype.getState = undefined;
 };
 
-},{"./core.js":9}],16:[function(require,module,exports){
+},{"./core.js":10}],17:[function(require,module,exports){
 var TREE_KEY = 'tree';
+var TOKEN_INDEX_KEY = 'token_index';
 var UPDATED_AT_KEY = 'updated_at'
 
 module.exports.getTree = function() {
   return JSON.parse(localStorage.getItem(TREE_KEY)) || {};
 }
 
+module.exports.getTokenIndex = function() {
+  return JSON.parse(localStorage.getItem(TOKEN_INDEX_KEY)) || {};
+}
+
 module.exports.storeTree = function(tree) {
   var value = JSON.stringify(tree);
-  localStorage.setItem(TREE_KEY, value)
+  localStorage.setItem(TREE_KEY, value);
+}
+
+module.exports.storeTokenIndex = function(tokenIndex) {
+  var value = JSON.stringify(tokenIndex);
+  console.log('storing token index')
+  localStorage.setItem(TOKEN_INDEX_KEY, value);
+  console.log('token index stored')
 }
 
 module.exports.getUpdatedAt = function() {
@@ -1117,4 +1171,10 @@ module.exports.getUpdatedAt = function() {
 module.exports.setUpdatedAt = function(value) {
   localStorage.setItem(UPDATED_AT_KEY, value);
 }
+},{}],18:[function(require,module,exports){
+var WORD_REGEX = /\w[\w']*\w/g
+
+module.exports = function(string) {
+  return string.match(WORD_REGEX);
+};
 },{}]},{},[1]);
